@@ -192,23 +192,11 @@ export class Timestamp {
         }
         return result;
     }
-    public year(): number {
-        return this.date ? this.date.getFullYear() : undefined;
+    public getStart(): Date {
+        return this.date;
     }
-    public month(): number {
-        return this.date ? this.date.getMonth() : undefined;
-    }
-    public day(): number {
-        return this.date ? this.date.getDate() : undefined;
-    }
-    public dow(): number {
-        return this.date ? this.date.getDay() : undefined;
-    }
-    public hours(): number {
-        return this.date ? this.date.getHours() : undefined;
-    }
-    public minutes(): number {
-        return this.date ? this.date.getMinutes() : undefined;
+    public getEnd(): Date {
+        return this.date2;
     }
 }
 
