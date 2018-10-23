@@ -54,13 +54,16 @@
 // TODO: Represent timestamp range.  That differs from diary timestamp.
 // TODO: Parse and format brackets (square and angled), keep "active" flag.
 
-const offsetRegex = /^(-|--|\+|\+\+)(\d*)(\w{0,3})$/;
+// Day of week and month abbreviations have value when parsing date/offset input.
+// Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
 const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; 
 // ['Вс', 'Пн', 'Бт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( \w\w\w)?/;
+const offsetRegex = /^(-|--|\+|\+\+)(\d*)(\w{0,3})$/;
+// Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is a function of date.
+const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( \w+)?/;  
 const timeRegex = /([012]?[0-9]):([0-5][0-9])/;
 
 export enum TimestampKind {
@@ -158,7 +161,7 @@ export class Timestamp {
             if (n > 0) {
                 n = n * 7 - (dow1 + 7 - dow2) % 7;
             } else {
-                n = n * 7 + (dow1 + 7 - dow2) % 7;
+                n = n * 7 + (dow2 + 7 - dow1) % 7;
             }
             this.date.setDate(this.date.getDate() + n);
             if (this.date2)
@@ -215,7 +218,7 @@ export function orgParseDateTimeInput(input: string, defdate?: string): string {
         if (match[1].length == 2) {
             src = new Timestamp(defdate);
         }
-        if (match[1] == '-' || match[0] == '--') {
+        if (match[1] == '-' || match[1] == '--') {
             off = -off;
         }
         src.adjust(off, match[3]);
