@@ -55,6 +55,7 @@
 // TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
 // TODO: Parse and format brackets (square and angle), keep "active" flag.
 // TODO: Clarify what -wed should do if it's relative to Wed: does it step back a week?  Update formula accordingly.
+// TODO: Expose timestamp repeat and delay to external consumer.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
@@ -63,7 +64,7 @@ const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-const offsetRegex = /^(-|--|\+|\+\+)(\d*)(\w{0,3})$/;
+const offsetRegex = /^(-|--|\+|\+\+)(\d*)(\w{0,3})/;
 // Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is a function of date.
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( \w+)?/;  
 const timeRegex = /([012]?[0-9]):([0-5][0-9])/;
@@ -80,10 +81,14 @@ export class Timestamp {
     private kind: TimestampKind;
     private date2: Date;       // For diary timestamps and ranges.
     private repeat: number;    // For repeating agenda timestamps.  0 means no repeat.
-    private unit: string;      // Units for repeating timestamps.
+    private runit: string;     // Units for repeater.
+    private delay: number;     // Warning delay.  0 menas no delay.
+    private dunit: string;     // Units for delay;
     constructor(str?: string) {
         this.repeat = 0;
-        this.unit = '';
+        this.runit = '';
+        this.delay = 0;
+        this.dunit = '';
         if (!str) {
             return;
         }
@@ -112,15 +117,29 @@ export class Timestamp {
                 }
             }
         }
+        // TODO: Repeat and delay follow in a specific order.  Refactor.
         m = offsetRegex.exec(str);
-        if (!m) {
-            return;
-        }
-        // ++, -, and -- do not have any meaning for repeats.
-        if (m[1] == '+') {
+        if (m) {
             let n = parseInt(m[2]);
-            this.repeat = isNaN(n) ? 1 : n;
-            this.unit = m[3];
+            if (m[1] == '+') {
+                this.repeat = isNaN(n) ? 1 : n;
+                this.runit = m[3];
+            } else if (m[1] == '-') {
+                this.delay = isNaN(n) ? 1 : n;
+                this.dunit = m[3];
+            }
+            str = str.substr(m[0].length).replace(/^\s+/, '');
+        }
+        m = offsetRegex.exec(str);
+        if (m) {
+            let n = parseInt(m[2]);
+            if (m[1] == '+') {
+                this.repeat = isNaN(n) ? 1 : n;
+                this.runit = m[3];
+            } else if (m[1] == '-') {
+                this.delay = isNaN(n) ? 1 : n;
+                this.dunit = m[3];
+            }
         }
     }
     public adjust(n: number, u: string) {
@@ -192,8 +211,13 @@ export class Timestamp {
         if (this.kind == TimestampKind.Diary) {
             result = result + '-' + formatTime(this.date2);
         }
-        if (this.kind != TimestampKind.Diary && this.repeat > 0) {
-            result = result + ' +' + this.repeat.toString() + this.unit;
+        if (this.kind != TimestampKind.Diary) {
+            if (this.repeat > 0) {
+                result = result + ' +' + this.repeat.toString() + this.runit;
+            }
+            if (this.delay > 0) {
+                result = result + ' -' + this.delay.toString() + this.dunit;
+            }
         }
         return result;
     }
