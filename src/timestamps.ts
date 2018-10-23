@@ -47,12 +47,14 @@
 // 11am--1:15pm   ⇒ same as above
 // 11am+2:15      ⇒ same as above
 
-// TODO: Accept time ranges in the adjust input as described above.
+// TODO: Accept time ranges in the input to adjust function as described above.
 // TODO: Note that minutes are optional.
-// TODO: Accept am/pm, assume am if absent or pm if hours >= 12.
-// TODO: Make configuration variables for months and days of week abbreviations.
-// TODO: Represent timestamp range.  That differs from diary timestamp.
-// TODO: Parse and format brackets (square and angled), keep "active" flag.
+// TODO: Make configuration variables for month and day of week abbreviations.
+// TODO: Provide methods to set month and day of week abbreviations.  Can be called on extension activation.
+// TODO: Load configuration once when plugin loads.
+// TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
+// TODO: Parse and format brackets (square and angle), keep "active" flag.
+// TODO: Clarify what -wed should do if it's relative to Wed: does it step back a week?  Update formula accordingly.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
