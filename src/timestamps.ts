@@ -77,17 +77,16 @@ export enum TimestampKind {
 }
 
 export class TimeOffset {
-    value: number;
-    unit: string;
-    constructor() {
-        this.value = 0;
-        this.unit = '';
-    }
+    value: number = 0;
+    unit: string = '';
     public isSet(): boolean {
-        return this.value > 0;
+        return this.value != 0;
+    }
+    public isDelay(): boolean {
+        return this.value < 0;
     }
     public toString(): string {
-        return this.value.toString() + this.unit;
+        return ' ' + this.value.toString() + this.unit;
     }
 }
 
@@ -139,7 +138,7 @@ export class Timestamp {
         m = delayRegex.exec(str);
         if (m) {
             let off = parseInt(m[2]);
-            this.delay.value = isNaN(off) ? 1 : off;
+            this.delay.value = isNaN(off) ? -1 : -off;
             this.delay.unit = m[3];
         }
     }
@@ -214,10 +213,10 @@ export class Timestamp {
         }
         if (this.kind != TimestampKind.Diary) {
             if (this.repeat.isSet()) {
-                result = result + ' +' + this.repeat.toString();
+                result = result + this.repeat.toString();
             }
             if (this.delay.isSet()) {
-                result = result + ' -' + this.delay.toString();
+                result = result + this.delay.toString();
             }
         }
         return result;

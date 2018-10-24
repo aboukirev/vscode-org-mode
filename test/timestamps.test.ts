@@ -9,6 +9,12 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('.'), expected);
         done();
     });
+    test('Parses and formats delay part', done => {
+        let source = '2018-10-21 Sun 19:10 -2d';
+        let expected = source;
+        assert.equal(new timestamps.Timestamp(source).toString(), expected);
+        done();
+    });
     test('Recognizes zero offset from today', done => {
         let expected = (new timestamps.Timestamp()).toString();
         assert.equal(timestamps.orgParseDateTimeInput('+0'), expected);
