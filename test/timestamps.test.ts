@@ -31,6 +31,12 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('++4', source), expected);
         done();
     });
+    test('Recognizes positive offset in week days from the same week day', done => {
+        let source = '2018-10-17 Wed 19:10';
+        let expected = '2018-10-24 Wed 19:10';
+        assert.equal(timestamps.orgParseDateTimeInput('++wed', source), expected);
+        done();
+    });
     test('Recognizes negative offset in week days from today', done => {
         let source = new timestamps.Timestamp();
         source.adjust(-1, 'wed');
@@ -40,6 +46,12 @@ suite('Timestamps', () => {
     });
     test('Recognizes negative offset in week days from a given date', done => {
         let source = '2018-10-21 Sun 19:10';
+        let expected = '2018-10-17 Wed 19:10';
+        assert.equal(timestamps.orgParseDateTimeInput('--wed', source), expected);
+        done();
+    });
+    test('Recognizes negative offset in week days from the same week day', done => {
+        let source = '2018-10-24 Wed 19:10';
         let expected = '2018-10-17 Wed 19:10';
         assert.equal(timestamps.orgParseDateTimeInput('--wed', source), expected);
         done();

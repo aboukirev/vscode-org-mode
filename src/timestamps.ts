@@ -54,7 +54,6 @@
 // TODO: Load configuration once when plugin loads.
 // TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
 // TODO: Parse and format brackets (square and angle), keep "active" flag.
-// TODO: Clarify what -wed should do if it's relative to Wed: does it step back a week?  Update formula accordingly.
 // TODO: Expose timestamp repeat and delay to external consumer.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
@@ -172,9 +171,9 @@ export class Timestamp {
         if (dow2) {
             let dow1 = this.date.getDay();
             if (n > 0) {
-                n = n * 7 - (dow1 + 7 - dow2) % 7;
+                n = n * 7 - (dow1 - dow2) % 7;  // n = n * 7 - (dow1 + 7 - dow2) % 7;
             } else {
-                n = n * 7 + (dow2 + 7 - dow1) % 7;
+                n = n * 7 + (dow2 - dow1) % 7;  // n = n * 7 + (dow2 + 7 - dow1) % 7;
             }
             this.date.setDate(this.date.getDate() + n);
             if (this.date2)
