@@ -54,7 +54,6 @@
 // TODO: Load configuration once when plugin loads.
 // TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
 // TODO: Parse and format brackets (square and angle), keep "active" flag.
-// TODO: Expose timestamp repeat and delay to external consumer.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
@@ -77,19 +76,30 @@ export enum TimestampKind {
     DateRange = 3
 }
 
+export class TimeOffset {
+    value: number;
+    unit: string;
+    constructor() {
+        this.value = 0;
+        this.unit = '';
+    }
+    public isSet(): boolean {
+        return this.value > 0;
+    }
+    public toString(): string {
+        return this.value.toString() + this.unit;
+    }
+}
+
 export class Timestamp {
     private date: Date;
     private kind: TimestampKind;
-    private date2: Date;       // For diary timestamps and ranges.
-    private repeat: number;    // For repeating agenda timestamps.  0 means no repeat.
-    private runit: string;     // Units for repeater.
-    private delay: number;     // Warning delay.  0 menas no delay.
-    private dunit: string;     // Units for delay;
+    private date2: Date;          // For diary timestamps and ranges.
+    private repeat: TimeOffset;   // For repeating agenda timestamps.  0 value means no repeat.
+    private delay: TimeOffset;    // Warning delay.  0 value menas no delay.
     constructor(str?: string) {
-        this.repeat = 0;
-        this.runit = '';
-        this.delay = 0;
-        this.dunit = '';
+        this.repeat = new TimeOffset();
+        this.delay = new TimeOffset();
         if (!str) {
             return;
         }
@@ -122,15 +132,15 @@ export class Timestamp {
         m = repeatRegex.exec(str);
         if (m) {
             let off = parseInt(m[2]);
-            this.repeat = isNaN(off) ? 1 : off;
-            this.runit = m[3];
+            this.repeat.value = isNaN(off) ? 1 : off;
+            this.repeat.unit = m[3];
             str = str.substr(m[0].length).replace(/^\s+/, '');
         }
         m = delayRegex.exec(str);
         if (m) {
             let off = parseInt(m[2]);
-            this.delay = isNaN(off) ? 1 : off;
-            this.dunit = m[3];
+            this.delay.value = isNaN(off) ? 1 : off;
+            this.delay.unit = m[3];
         }
     }
     public adjust(n: number, u: string) {
@@ -203,11 +213,11 @@ export class Timestamp {
             result = result + '-' + formatTime(this.date2);
         }
         if (this.kind != TimestampKind.Diary) {
-            if (this.repeat > 0) {
-                result = result + ' +' + this.repeat.toString() + this.runit;
+            if (this.repeat.isSet()) {
+                result = result + ' +' + this.repeat.toString();
             }
-            if (this.delay > 0) {
-                result = result + ' -' + this.delay.toString() + this.dunit;
+            if (this.delay.isSet()) {
+                result = result + ' -' + this.delay.toString();
             }
         }
         return result;
@@ -217,6 +227,12 @@ export class Timestamp {
     }
     public getEnd(): Date {
         return this.date2;
+    }
+    public getRepeater(): TimeOffset {
+        return this.repeat;
+    }
+    public getDelay(): TimeOffset {
+        return this.delay;
     }
 }
 
