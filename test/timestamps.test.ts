@@ -62,4 +62,29 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('--wed', source), expected);
         done();
     });
+    test('Recognizes plain timestamp', done => {
+        let source = '2018-10-21 Sun 19:10 -2d';
+        let expected = source;
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isActive(), false);
+        assert.equal(ts.isInactive(), false);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
+    test('Recognizes active timestamp', done => {
+        let source = '<2018-10-21 Sun 19:10 -2d>';
+        let expected = source;
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isActive(), true);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
+    test('Recognizes inactive timestamp', done => {
+        let source = '[2018-10-21 Sun 19:10 -2d]';
+        let expected = source;
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isInactive(), true);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
 });

@@ -53,7 +53,6 @@
 // TODO: Provide methods to set month and day of week abbreviations.  Can be called on extension activation.
 // TODO: Load configuration once when plugin loads.
 // TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
-// TODO: Parse and format brackets (square and angle), keep "active" flag.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
@@ -93,6 +92,7 @@ export class TimeOffset {
 export class Timestamp {
     private date: Date;
     private kind: TimestampKind;
+    private active?: boolean;     // 3-state: undefined, active, inactive.
     private date2: Date;          // For diary timestamps and ranges.
     private repeat: TimeOffset;   // For repeating agenda timestamps.  0 value means no repeat.
     private delay: TimeOffset;    // Warning delay.  0 value menas no delay.
@@ -103,6 +103,13 @@ export class Timestamp {
             return;
         }
         str = str.replace(/^\s+/, '');
+        if (str.charAt(0) == '<') {
+            this.active = true;
+            str = str.substr(1);
+        } else if (str.charAt(0) == '[') {
+            this.active = false;
+            str = str.substr(1);
+        }
         let m = dateRegex.exec(str);
         if (!m) {
             return;
@@ -123,6 +130,7 @@ export class Timestamp {
                     this.date2.setHours(parseInt(m[1]));
                     this.date2.setMinutes(parseInt(m[2]));
                     this.kind = TimestampKind.Diary;
+                    // TODO: Verify and skip the closing bracket if any.
                     return;  // No other parts allowed.
                 }
             }
@@ -140,7 +148,18 @@ export class Timestamp {
             let off = parseInt(m[2]);
             this.delay.value = isNaN(off) ? -1 : -off;
             this.delay.unit = m[3];
+            str = str.substr(m[0].length).replace(/^\s+/, '');
         }
+        if (this.active == true) {
+            let i = str.indexOf('>');
+            if (i >= 0)
+                str = str.substr(i).replace(/^\s+/, '');
+        } else if (this.active == false) {
+            let i = str.indexOf(']');
+            if (i >= 0)
+                str = str.substr(i).replace(/^\s+/, '');
+        }
+        // TODO: Check if there is a date range.  Second date must have the same brackets as the first one.
     }
     public adjust(n: number, u: string) {
         if (!this.date) {
@@ -219,6 +238,10 @@ export class Timestamp {
                 result = result + this.delay.toString();
             }
         }
+        if (this.active == true)
+            return '<' + result + '>';
+        else if (this.active == false)
+            return '[' + result + ']';
         return result;
     }
     public getStart(): Date {
@@ -232,6 +255,12 @@ export class Timestamp {
     }
     public getDelay(): TimeOffset {
         return this.delay;
+    }
+    public isActive(): boolean {
+        return this.active == true;
+    }
+    public isInactive(): boolean {
+        return this.active == false;
     }
 }
 
