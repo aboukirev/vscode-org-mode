@@ -87,4 +87,22 @@ suite('Timestamps', () => {
         assert.equal(ts.toString(), expected);
         done();
     });
+    test('Recognizes date range', done => {
+        let source = '[2018-10-21 Sun]--[2018-10-24 Wed]';
+        let expected = source;
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isInactive(), true);
+        assert.equal(ts.getKind(), timestamps.TimestampKind.DateRange);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
+    test('Recognizes date/time range', done => {
+        let source = '<2018-10-21 Sun 19:10 -2d>--<2018-10-24 Wed 21:10>';
+        let expected = source;
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isActive(), true);
+        assert.equal(ts.getKind(), timestamps.TimestampKind.DateTimeRange);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
 });

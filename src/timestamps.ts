@@ -52,7 +52,6 @@
 // TODO: Make configuration variables for month and day of week abbreviations.
 // TODO: Provide methods to set month and day of week abbreviations.  Can be called on extension activation.
 // TODO: Load configuration once when plugin loads.
-// TODO: Represent timestamp range.  Differs from diary timestamp and formats accordingly.  
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
@@ -66,13 +65,14 @@ const repeatRegex = /^(\+|\+\+)(\d*)([hdwmy])/;
 const delayRegex = /^(-|--)(\d*)([hdwmy])/;
 // Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is a function of date.
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( \w+)?/;  
-const timeRegex = /([012]?[0-9]):([0-5][0-9])/;
+const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
 
 export enum TimestampKind {
     Date = 0,
     DateTime = 1,
     Diary = 2,
-    DateRange = 3
+    DateRange = 3,
+    DateTimeRange = 4
 }
 
 export class TimeOffset {
@@ -103,12 +103,18 @@ export class Timestamp {
             return;
         }
         str = str.replace(/^\s+/, '');
-        if (str.charAt(0) == '<') {
+        let startCh = str.charAt(0);
+        let endCh = '';
+        if (startCh == '<') {
             this.active = true;
+            endCh = '>';
             str = str.substr(1);
-        } else if (str.charAt(0) == '[') {
+        } else if (startCh == '[') {
             this.active = false;
+            endCh = ']';
             str = str.substr(1);
+        } else {
+            startCh = '';
         }
         let m = dateRegex.exec(str);
         if (!m) {
@@ -150,16 +156,31 @@ export class Timestamp {
             this.delay.unit = m[3];
             str = str.substr(m[0].length).replace(/^\s+/, '');
         }
-        if (this.active == true) {
-            let i = str.indexOf('>');
-            if (i >= 0)
-                str = str.substr(i).replace(/^\s+/, '');
-        } else if (this.active == false) {
-            let i = str.indexOf(']');
-            if (i >= 0)
-                str = str.substr(i).replace(/^\s+/, '');
+        if (startCh != '') {
+            let i = str.indexOf(endCh);
+            if (i >= 0) {
+                str = str.substr(i + 1).replace(/^\s+/, '');
+            }
+            if (str.length > 4 && str.substr(0, 3) == ('--' + startCh)) {
+                str = str.substr(3);
+                let m = dateRegex.exec(str);
+                if (!m) {
+                    return;
+                }
+                this.date2 = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+                this.kind = this.kind == TimestampKind.Date ? TimestampKind.DateRange : TimestampKind.DateTimeRange;
+                str = str.substr(m[0].length).replace(/^\s+/, '');
+                m = timeRegex.exec(str);
+                if (m) {
+                    this.date2.setHours(parseInt(m[1]));
+                    this.date2.setMinutes(parseInt(m[2]));
+                } else {
+                    this.date2.setHours(this.date.getHours());
+                    this.date2.setMinutes(this.date.getMinutes());
+                }
+                // TODO: Verify and skip the closing bracket if any.
+            }
         }
-        // TODO: Check if there is a date range.  Second date must have the same brackets as the first one.
     }
     public adjust(n: number, u: string) {
         if (!this.date) {
@@ -224,7 +245,7 @@ export class Timestamp {
             return '';
         }
         let result = formatDate(this.date);
-        if (this.kind != TimestampKind.Date) {
+        if (this.kind != TimestampKind.Date && this.kind != TimestampKind.DateRange) {
             result = result + ' ' + formatTime(this.date);
         }
         if (this.kind == TimestampKind.Diary) {
@@ -239,9 +260,20 @@ export class Timestamp {
             }
         }
         if (this.active == true)
-            return '<' + result + '>';
+            result = '<' + result + '>';
         else if (this.active == false)
-            return '[' + result + ']';
+            result = '[' + result + ']';
+        if (this.kind == TimestampKind.DateRange || this.kind == TimestampKind.DateTimeRange) {
+            let result2 = formatDate(this.date2);
+            if (this.kind == TimestampKind.DateTimeRange) {
+                result2 = result2 + ' ' + formatTime(this.date2);
+            }
+            if (this.active == true)
+                result2 = '<' + result2 + '>';
+            else if (this.active == false)
+                result2 = '[' + result2 + ']';
+            result = result + '--' + result2;
+        }
         return result;
     }
     public getStart(): Date {
@@ -261,6 +293,9 @@ export class Timestamp {
     }
     public isInactive(): boolean {
         return this.active == false;
+    }
+    public getKind(): TimestampKind {
+        return this.kind;
     }
 }
 
