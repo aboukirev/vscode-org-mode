@@ -105,4 +105,20 @@ suite('Timestamps', () => {
         assert.equal(ts.toString(), expected);
         done();
     });
+    test('Can redefine days of week abbreviations', done => {
+        let source = '<2018-10-21 Sun 19:10 -2d>';
+        let expected = '<2018-10-21 Вс 19:10 -2d>';
+        timestamps.orgSetDayOfWeekAbbr(['Вс', 'Пн', 'Бт', 'Ср', 'Чт', 'Пт', 'Сб']);
+        let ts = new timestamps.Timestamp(source);
+        assert.equal(ts.isActive(), true);
+        assert.equal(ts.toString(), expected);
+        done();
+    });
+    test('Can parse custom days of week abbreviations', done => {
+        let source = '2018-10-17 Wed 19:10';
+        let expected = '2018-10-24 Ср 19:10';
+        timestamps.orgSetDayOfWeekAbbr(['Вс', 'Пн', 'Бт', 'Ср', 'Чт', 'Пт', 'Сб']);
+        assert.equal(timestamps.orgParseDateTimeInput('++ср', source), expected);
+        done();
+    });
 });

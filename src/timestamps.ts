@@ -47,24 +47,21 @@
 // 11am--1:15pm   ⇒ same as above
 // 11am+2:15      ⇒ same as above
 
-// TODO: Accept time ranges in the input to adjust function as described above.
-// TODO: Note that minutes are optional.
-// TODO: Make configuration variables for month and day of week abbreviations.
-// TODO: Provide methods to set month and day of week abbreviations.  Can be called on extension activation.
-// TODO: Load configuration once when plugin loads.
+// TODO: Accept time ranges in the input to adjust function as described above.  Note that minutes are optional.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
-// Day of week is also used in formatting of timestamp.  However, it is irrelevant because formatted day of week does not need to be parsed.
-const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; 
-// ['Вс', 'Пн', 'Бт', 'Ср', 'Чт', 'Пт', 'Сб'];
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted day of week does not need to be parsed back.
+let daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; 
+let months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-const offsetRegex = /^(-|--|\+|\+\+)(\d*)(\w{0,3})$/;
+// In JS \w matches only ASCII letters.  The regex below takes care to also exclude other symbols in the unit part to achieve proper matching. 
+const offsetRegex = /^(-|--|\+|\+\+)(\d*)([^-\+\s\d]*)$/;
 const repeatRegex = /^(\+|\+\+)(\d*)([hdwmy])/;
 const delayRegex = /^(-|--)(\d*)([hdwmy])/;
 // Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is a function of date.
-const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( \w+)?/;  
+// Could not use \w to match letters as it on;y works for ASCII. 
+const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
 
 export enum TimestampKind {
@@ -323,3 +320,14 @@ export function orgParseDateTimeInput(input: string, defdate?: string): string {
     return src.toString();
 }
 
+export function orgSetDayOfWeekAbbr(abbr: string[]) {
+    if (abbr && abbr.length == 7) {
+        daysOfWeek = abbr;
+    }
+}
+
+export function orgSetMonthAbbr(abbr: string[]) {
+    if (abbr && abbr.length == 12) {
+        months = abbr;
+    }
+}
