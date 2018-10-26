@@ -48,19 +48,26 @@
 // 11am+2:15      ⇒ same as above
 
 // TODO: Accept time ranges in the input to adjust function as described above.  Note that minutes are optional.
+// TODO: An idea for parsing days of week: keep English abbreviations list and also allow custom abbreviations; 
+// combine both lists with a vertical pipe separator into choices in regular expression.  That approach has its 
+// issues as we should technically skip day of week in the timestamp - it can be derived from the date.  With 
+// specific day of week choices some localized timestamps will fail to parse.  Localized day of week abbreviation
+// parsing is only important in offset expression.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
-// Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted day of week does not need to be parsed back.
+// Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted 
+// day of week does not need to be parsed back.
 let daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; 
 let months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-// In JS \w matches only ASCII letters.  The regex below takes care to also exclude other symbols in the unit part to achieve proper matching. 
+// In JS \w matches only ASCII letters.  The regex below takes care to also exclude other symbols in the unit 
+// part to achieve proper matching. 
 const offsetRegex = /^(-|--|\+|\+\+)(\d*)([^-\+\s\d]*)$/;
 const repeatRegex = /^(\+|\+\+)(\d*)([hdwmy])/;
 const delayRegex = /^(-|--)(\d*)([hdwmy])/;
-// Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is a function of date.
-// Could not use \w to match letters as it on;y works for ASCII. 
+// Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is 
+// a function of date. Could not use \w to match letters as it on;y works for ASCII. 
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
 
