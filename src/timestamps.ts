@@ -70,6 +70,7 @@ const delayRegex = /^(-|--)(\d*)([hdwmy])/;
 // a function of date. Could not use \w to match letters as it on;y works for ASCII. 
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
+const isoRegex = /(\d{1,4}-)?(\d{1,2}-)?(\d{1,2})/;
 
 export enum TimestampKind {
     Date = 0,
@@ -233,6 +234,10 @@ export class Timestamp {
                 this.date2.setDate(this.date2.getDate() + n);
         }
     }
+    public fromDate(dt: Date, kind: TimestampKind = TimestampKind.Date) {
+        this.date = dt;
+        this.kind = kind;
+    }
     public toString(): string {
         let zeroPpad = function (val: number, len: number): string {
             let str = String(val);
@@ -322,8 +327,40 @@ export function orgParseDateTimeInput(input: string, defdate?: string): string {
             off = -off;
         }
         src.adjust(off, match[3]);
+        return src.toString();
     }
-    // TODO: Parse an actual date instead of an offset.
+    // Full or partial ISO date YYYY=MM-DD
+    match = isoRegex.exec(input);
+    if (match) {
+        let p1 = parseInt(match[1]);
+        let p2 = parseInt(match[2]);
+        let p3 = parseInt(match[3]);
+        let now = new Date();
+        if (!isNaN(p1) && !isNaN(p2)) {
+            // We have all 3 parts but the year could be partial.
+            if (p1 < 38) {
+                p1 = p1 + 2000;
+            } else if (p1 < 100) {
+                p1 = p1 + 1900;
+            }
+        } else if (isNaN(p2)) {
+            // p1 is actually the month.  Assume current year for now.
+            p2 = p1;
+            p1 = now.getFullYear();
+            // Always create a future date.
+            if (isNaN(p2)) {
+                // Actually we don't have month either.  Assume current.
+                p2 = now.getMonth() + 1;
+                if (p3 < now.getDate())
+                    p2++;
+            } else if (p3 < now.getDate() || p2 <= now.getMonth()) {
+                p1++;
+            }
+        } 
+        src.fromDate(new Date(p1, p2 - 1, p3));
+        return src.toString();
+    }
+    // TODO: Parse US date and other variations.
     return src.toString();
 }
 
