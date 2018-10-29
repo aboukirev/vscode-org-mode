@@ -72,6 +72,7 @@ const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
 const isoDateRegex = /^(\d{1,4}-)?(\d{1,2}-)?(\d{1,2})$/;
 const usDateRegex = /^(\d{1,2})\/(\d{1,2})(\/\d{1,4})?$/;
+const monDayYearRegex = /^([^-\+\s\d]+)( \d{1,2})?( \d{1,4})?/;
 
 export enum TimestampKind {
     Date = 0,
@@ -227,10 +228,13 @@ export class Timestamp {
         let dow2 = daysOfWeek.findIndex(elt => elt.toLowerCase() == u);
         if (dow2) {
             let dow1 = this.date.getDay();
+            let diff = dow1 - dow2;
             if (n > 0) {
-                n = n * 7 - (dow1 - dow2) % 7;  // n = n * 7 - (dow1 + 7 - dow2) % 7;
+                diff = diff < 0 ? diff + 7 : diff;
+                n = n * 7 - diff % 7;
             } else {
-                n = n * 7 + (dow2 - dow1) % 7;  // n = n * 7 + (dow2 + 7 - dow1) % 7;
+                diff = diff > 0 ? 7 - diff : -diff;
+                n = n * 7 + diff % 7;
             }
             this.date.setDate(this.date.getDate() + n);
             if (this.date2)
@@ -240,6 +244,30 @@ export class Timestamp {
     public fromToday() {
         let now = new Date();
         this.date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        this.kind = TimestampKind.Date;
+    }
+    private fromDateParts(yy: number, mm: number, dd: number) {
+        let now = new Date();
+        if (!isNaN(yy) && !isNaN(mm)) {
+            // We have all 3 parts but the year could be partial.
+            if (yy < 38) {
+                yy = yy + 2000;
+            } else if (yy < 100) {
+                yy = yy + 1900;
+            }
+        } else {
+            yy = now.getFullYear();
+            // Always create a future date.
+            if (isNaN(mm)) {
+                // Actually we don't have month either.  Assume current.
+                mm = now.getMonth() + 1;
+                if (dd < now.getDate())
+                mm++;
+            } else if (dd < now.getDate() || mm <= now.getMonth()) {
+                yy++;
+            }
+        } 
+        this.date = new Date(yy, mm - 1, dd);
         this.kind = TimestampKind.Date;
     }
     public fromInput(input: string, defdate?: string) {
@@ -270,30 +298,12 @@ export class Timestamp {
             let p1 = parseInt(match[1]);
             let p2 = parseInt(match[2]);
             let p3 = parseInt(match[3]);
-            let now = new Date();
-            if (!isNaN(p1) && !isNaN(p2)) {
-                // We have all 3 parts but the year could be partial.
-                if (p1 < 38) {
-                    p1 = p1 + 2000;
-                } else if (p1 < 100) {
-                    p1 = p1 + 1900;
-                }
-            } else if (isNaN(p2)) {
+            if (isNaN(p2)) {
                 // p1 is actually the month.  Assume current year for now.
                 p2 = p1;
-                p1 = now.getFullYear();
-                // Always create a future date.
-                if (isNaN(p2)) {
-                    // Actually we don't have month either.  Assume current.
-                    p2 = now.getMonth() + 1;
-                    if (p3 < now.getDate())
-                        p2++;
-                } else if (p3 < now.getDate() || p2 <= now.getMonth()) {
-                    p1++;
-                }
-            } 
-            this.date = new Date(p1, p2 - 1, p3);
-            this.kind = TimestampKind.Date;
+                p1 = NaN;
+            }
+            this.fromDateParts(p1, p2, p3);
             return;
         }
         match = usDateRegex.exec(input);
@@ -301,23 +311,23 @@ export class Timestamp {
             let p2 = parseInt(match[1]);
             let p3 = parseInt(match[2]);
             let p1 = parseInt(match[3] ? match[3].substr(1) : '');
-            let now = new Date();
-            if (!isNaN(p1)) {
-                // We have all 3 parts but the year could be partial.
-                if (p1 < 38) {
-                    p1 = p1 + 2000;
-                } else if (p1 < 100) {
-                    p1 = p1 + 1900;
-                }
-            } else {
-                p1 = now.getFullYear();
-                // Always create a future date.
-                if (p3 < now.getDate() || p2 <= now.getMonth()) {
-                    p1++;
-                }
-            } 
-            this.date = new Date(p1, p2 - 1, p3);
-            this.kind = TimestampKind.Date;
+            this.fromDateParts(p1, p2, p3);
+            return;
+        }
+        match = monDayYearRegex.exec(input);
+        if (match) {
+            let p1 = parseInt(match[3] ? match[3].substr(1) : '');
+            let p2 = months.findIndex(elt => elt.toLowerCase() == match[1].toLowerCase()) + 1;
+            let p3 = parseInt(match[2] ? match[2].substr(1) : '');
+            if (isNaN(p1) && isNaN(p3)) {
+                // Must be a day of week.
+                this.adjust(1, match[1]);
+                return;
+            }
+            if (p2 <= 0) {
+                p2 = NaN;
+            }
+            this.fromDateParts(p1, p2, p3);
             return;
         }
         // TODO: Parse other variations.

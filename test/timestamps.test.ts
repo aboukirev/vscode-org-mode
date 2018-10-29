@@ -119,6 +119,15 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('9/5'), '2019-09-05 Thu');
         done();
     });
+    test('Parses day of week', done => {
+        assert.equal(timestamps.orgParseDateTimeInput('Wed'), '2018-10-31 Wed');
+        done();
+    });
+    test('Parses month day year date', done => {
+        assert.equal(timestamps.orgParseDateTimeInput('Sep 5 18'), '2018-09-05 Wed');
+        assert.equal(timestamps.orgParseDateTimeInput('Sep 5'), '2019-09-05 Thu');
+        done();
+    });
     test('Can redefine days of week abbreviations', done => {
         let source = '<2018-10-21 Sun 19:10 -2d>';
         let expected = '<2018-10-21 Вс 19:10 -2d>';
