@@ -53,6 +53,9 @@
 // issues as we should technically skip day of week in the timestamp - it can be derived from the date.  With 
 // specific day of week choices some localized timestamps will fail to parse.  Localized day of week abbreviation
 // parsing is only important in offset expression.
+// TODO: Refactor most of orgParseDateTimeInput into fromInput class method and make the former a wrapper.  
+// Get rid of fromDate method as fromInput will have direct access to privaye fields.  Make adjust private method
+// and refactor tests.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted 
@@ -91,6 +94,8 @@ export class TimeOffset {
         return this.value < 0;
     }
     public toString(): string {
+        if (this.value == 0)
+            return '';
         return ' ' + this.value.toString() + this.unit;
     }
 }
@@ -260,14 +265,8 @@ export class Timestamp {
         }
         if (this.kind == TimestampKind.Diary) {
             result = result + '-' + formatTime(this.date2);
-        }
-        if (this.kind != TimestampKind.Diary) {
-            if (this.repeat.isSet()) {
-                result = result + this.repeat.toString();
-            }
-            if (this.delay.isSet()) {
-                result = result + this.delay.toString();
-            }
+        } else {
+            result = result + this.repeat.toString() + this.delay.toString();
         }
         if (this.active == true)
             result = '<' + result + '>';
