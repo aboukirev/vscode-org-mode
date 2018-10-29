@@ -53,9 +53,6 @@
 // issues as we should technically skip day of week in the timestamp - it can be derived from the date.  With 
 // specific day of week choices some localized timestamps will fail to parse.  Localized day of week abbreviation
 // parsing is only important in offset expression.
-// TODO: Refactor most of orgParseDateTimeInput into fromInput class method and make the former a wrapper.  
-// Get rid of fromDate method as fromInput will have direct access to privaye fields.  Make adjust private method
-// and refactor tests.
 
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted 
@@ -108,9 +105,13 @@ export class Timestamp {
     private repeat: TimeOffset;   // For repeating agenda timestamps.  0 value means no repeat.
     private delay: TimeOffset;    // Warning delay.  0 value menas no delay.
     constructor(str?: string) {
+        this.fromTimestamp(str);
+    }
+    public fromTimestamp(str?: string) {
         this.repeat = new TimeOffset();
         this.delay = new TimeOffset();
         if (!str) {
+            this.fromToday();
             return;
         }
         str = str.replace(/^\s+/, '');
@@ -194,10 +195,6 @@ export class Timestamp {
         }
     }
     public adjust(n: number, u: string) {
-        if (!this.date) {
-            let now = new Date();
-            this.date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        }
         n = n ? n : 1;
         u = u ? u.toLowerCase() : 'd';
         
@@ -240,9 +237,90 @@ export class Timestamp {
                 this.date2.setDate(this.date2.getDate() + n);
         }
     }
-    public fromDate(dt: Date, kind: TimestampKind = TimestampKind.Date) {
-        this.date = dt;
-        this.kind = kind;
+    public fromToday() {
+        let now = new Date();
+        this.date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        this.kind = TimestampKind.Date;
+    }
+    public fromInput(input: string, defdate?: string) {
+        if (input == '.') {
+            this.fromToday();
+            return;
+        }
+        let match = offsetRegex.exec(input);
+        if (match) {
+            let off = parseInt(match[2]);
+            off = isNaN(off) ? 1 : off;
+            if (off == 0) {
+                this.fromToday();
+                return;
+            }
+            if (match[1].length == 2) {
+                this.fromTimestamp(defdate);
+            }
+            if (match[1] == '-' || match[1] == '--') {
+                off = -off;
+            }
+            this.adjust(off, match[3]);
+            return;
+        }
+        // Full or partial ISO date YYYY=MM-DD
+        match = isoDateRegex.exec(input);
+        if (match) {
+            let p1 = parseInt(match[1]);
+            let p2 = parseInt(match[2]);
+            let p3 = parseInt(match[3]);
+            let now = new Date();
+            if (!isNaN(p1) && !isNaN(p2)) {
+                // We have all 3 parts but the year could be partial.
+                if (p1 < 38) {
+                    p1 = p1 + 2000;
+                } else if (p1 < 100) {
+                    p1 = p1 + 1900;
+                }
+            } else if (isNaN(p2)) {
+                // p1 is actually the month.  Assume current year for now.
+                p2 = p1;
+                p1 = now.getFullYear();
+                // Always create a future date.
+                if (isNaN(p2)) {
+                    // Actually we don't have month either.  Assume current.
+                    p2 = now.getMonth() + 1;
+                    if (p3 < now.getDate())
+                        p2++;
+                } else if (p3 < now.getDate() || p2 <= now.getMonth()) {
+                    p1++;
+                }
+            } 
+            this.date = new Date(p1, p2 - 1, p3);
+            this.kind = TimestampKind.Date;
+            return;
+        }
+        match = usDateRegex.exec(input);
+        if (match) {
+            let p2 = parseInt(match[1]);
+            let p3 = parseInt(match[2]);
+            let p1 = parseInt(match[3] ? match[3].substr(1) : '');
+            let now = new Date();
+            if (!isNaN(p1)) {
+                // We have all 3 parts but the year could be partial.
+                if (p1 < 38) {
+                    p1 = p1 + 2000;
+                } else if (p1 < 100) {
+                    p1 = p1 + 1900;
+                }
+            } else {
+                p1 = now.getFullYear();
+                // Always create a future date.
+                if (p3 < now.getDate() || p2 <= now.getMonth()) {
+                    p1++;
+                }
+            } 
+            this.date = new Date(p1, p2 - 1, p3);
+            this.kind = TimestampKind.Date;
+            return;
+        }
+        // TODO: Parse other variations.
     }
     public toString(): string {
         let zeroPpad = function (val: number, len: number): string {
@@ -310,80 +388,7 @@ export class Timestamp {
 
 export function orgParseDateTimeInput(input: string, defdate?: string): string {
     let src: Timestamp = new Timestamp();
-    if (input == '.') {
-        return src.toString();
-    }
-    let match = offsetRegex.exec(input);
-    if (match) {
-        let off = parseInt(match[2]);
-        off = isNaN(off) ? 1 : off;
-        if (off == 0) {
-            return src.toString();
-        }
-        if (match[1].length == 2) {
-            src = new Timestamp(defdate);
-        }
-        if (match[1] == '-' || match[1] == '--') {
-            off = -off;
-        }
-        src.adjust(off, match[3]);
-        return src.toString();
-    }
-    // Full or partial ISO date YYYY=MM-DD
-    match = isoDateRegex.exec(input);
-    if (match) {
-        let p1 = parseInt(match[1]);
-        let p2 = parseInt(match[2]);
-        let p3 = parseInt(match[3]);
-        let now = new Date();
-        if (!isNaN(p1) && !isNaN(p2)) {
-            // We have all 3 parts but the year could be partial.
-            if (p1 < 38) {
-                p1 = p1 + 2000;
-            } else if (p1 < 100) {
-                p1 = p1 + 1900;
-            }
-        } else if (isNaN(p2)) {
-            // p1 is actually the month.  Assume current year for now.
-            p2 = p1;
-            p1 = now.getFullYear();
-            // Always create a future date.
-            if (isNaN(p2)) {
-                // Actually we don't have month either.  Assume current.
-                p2 = now.getMonth() + 1;
-                if (p3 < now.getDate())
-                    p2++;
-            } else if (p3 < now.getDate() || p2 <= now.getMonth()) {
-                p1++;
-            }
-        } 
-        src.fromDate(new Date(p1, p2 - 1, p3));
-        return src.toString();
-    }
-    match = usDateRegex.exec(input);
-    if (match) {
-        let p2 = parseInt(match[1]);
-        let p3 = parseInt(match[2]);
-        let p1 = parseInt(match[3] ? match[3].substr(1) : '');
-        let now = new Date();
-        if (!isNaN(p1)) {
-            // We have all 3 parts but the year could be partial.
-            if (p1 < 38) {
-                p1 = p1 + 2000;
-            } else if (p1 < 100) {
-                p1 = p1 + 1900;
-            }
-        } else {
-            p1 = now.getFullYear();
-            // Always create a future date.
-            if (p3 < now.getDate() || p2 <= now.getMonth()) {
-                p1++;
-            }
-        } 
-        src.fromDate(new Date(p1, p2 - 1, p3));
-        return src.toString();
-    }
-    // TODO: Parse other variations.
+    src.fromInput(input, defdate);
     return src.toString();
 }
 
