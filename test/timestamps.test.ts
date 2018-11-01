@@ -4,6 +4,17 @@ import * as assert from 'assert';
 import * as timestamps from '../src/timestamps';
 
 suite('Timestamps', () => {
+    suiteSetup(() => {
+        timestamps.orgSetTrace(true);
+        timestamps.orgSetDayOfWeekAbbr(undefined);
+        timestamps.orgSetMonthAbbr(undefined);
+    });
+    suiteTeardown(() => {
+        timestamps.orgSetMonthAbbr(undefined);
+        timestamps.orgSetDayOfWeekAbbr(undefined);
+        timestamps.orgSetTrace(false);
+    });
+    
     test('Recognizes today', done => {
         let expected = (new timestamps.Timestamp()).toString();
         assert.equal(timestamps.orgParseDateTimeInput('.'), expected);
@@ -110,7 +121,6 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('18-9-5'), '2018-09-05 Wed');
         assert.equal(timestamps.orgParseDateTimeInput('9-5'), '2019-09-05 Thu');
         assert.equal(timestamps.orgParseDateTimeInput('14'), '2018-11-14 Wed');
-        assert.equal(timestamps.orgParseDateTimeInput('29'), '2018-10-29 Mon');
         done();
     });
     test('Parses variations of US date', done => {
@@ -120,12 +130,20 @@ suite('Timestamps', () => {
         done();
     });
     test('Parses day of week', done => {
-        assert.equal(timestamps.orgParseDateTimeInput('Wed'), '2018-10-31 Wed');
+        assert.equal(timestamps.orgParseDateTimeInput('Wed'), '2018-11-07 Wed');
+        assert.equal(timestamps.orgParseDateTimeInput('fri'), '2018-11-02 Fri');
         done();
     });
     test('Parses month day year date', done => {
         assert.equal(timestamps.orgParseDateTimeInput('Sep 5 18'), '2018-09-05 Wed');
         assert.equal(timestamps.orgParseDateTimeInput('Sep 5'), '2019-09-05 Thu');
+        done();
+    });
+    test('Parses ISO week format date', done => {
+        assert.equal(timestamps.orgParseDateTimeInput('2018-w4'), '2018-01-21 Sun');
+        assert.equal(timestamps.orgParseDateTimeInput('2018-w4-1'), '2018-01-21 Sun');
+        assert.equal(timestamps.orgParseDateTimeInput('2018-w4-4'), '2018-01-24 Wed');
+        assert.equal(timestamps.orgParseDateTimeInput('w4'), '2019-01-20 Sun');  // No year, future date -> 2019.
         done();
     });
     test('Can redefine days of week abbreviations', done => {

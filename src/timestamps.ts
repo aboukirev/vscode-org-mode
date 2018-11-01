@@ -1,3 +1,5 @@
+import { SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION } from "constants";
+
 'use strict';
 
 // <2003-09-16 Tue> or <2003-09-16 Tue 09:39> or <2003-09-16 Tue 12:00-12:30>
@@ -47,13 +49,6 @@
 // 11am--1:15pm   ⇒ same as above
 // 11am+2:15      ⇒ same as above
 
-// TODO: Accept time ranges in the input to adjust function as described above.  Note that minutes are optional.
-// TODO: An idea for parsing days of week: keep English abbreviations list and also allow custom abbreviations; 
-// combine both lists with a vertical pipe separator into choices in regular expression.  That approach has its 
-// issues as we should technically skip day of week in the timestamp - it can be derived from the date.  With 
-// specific day of week choices some localized timestamps will fail to parse.  Localized day of week abbreviation
-// parsing is only important in offset expression.
-
 // Day of week and month abbreviations have value when parsing date/offset input.
 // Day of week is also used in formatting of timestamp.  However, it is insignificant there because formatted 
 // day of week does not need to be parsed back.
@@ -63,16 +58,23 @@ let months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oc
 
 // In JS \w matches only ASCII letters.  The regex below takes care to also exclude other symbols in the unit 
 // part to achieve proper matching. 
-const offsetRegex = /^(-|--|\+|\+\+)(\d*)([^-\+\s\d]*)$/;
-const repeatRegex = /^(\+|\+\+)(\d*)([hdwmy])/;
-const delayRegex = /^(-|--)(\d*)([hdwmy])/;
+const offsetRegex = /^([-+]{0,2})([0-9]+)?([^-\+\s\d]*)$/;
+// Alternative dynamic RegExp.
+//let offsetRx = new RegExp("^([-+]{0,2})([0-9]+)?([hdwmy]|(" + daysOfWeek.join('|') + "))?$");
+const repeatRegex = /^(\+{0,2})([0-9]+)?([hdwmy])/;
+const delayRegex = /^(-{1,2})([0-9]+)?([hdwmy])/;
 // Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is 
 // a function of date. Could not use \w to match letters as it on;y works for ASCII. 
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
-const isoDateRegex = /^(\d{1,4}-)?(\d{1,2}-)?(\d{1,2})$/;
-const usDateRegex = /^(\d{1,2})\/(\d{1,2})(\/\d{1,4})?$/;
-const monDayYearRegex = /^([^-\+\s\d]+)( \d{1,2})?( \d{1,4})?/;
+const monDayYearRx = /^([^-\+\s\d]+)( (\d{1,2}))?( (\d{1,4}))?([ \t]|$)/;
+const isoWeekRx = /^(?:([0-9]+)-)?[wW]([0-9]{1,2})(?:-([0-6]))?([ \t]|$)/;
+const isoDateRx = /^(([0-9]+)-)?([0-1]?[0-9])-([0-3]?[0-9])([^-0-9]|$)/;
+const euDateRx = /^(3[01]|0?[1-9]|[12][0-9])\. ?(0?[1-9]|1[012])\.( ?[1-9][0-9]{3})?/;
+const usDateRx = /^(0?[1-9]|1[012])\/(0?[1-9]|[12][0-9]|3[01])(\/([0-9]+))?([^\/0-9]|$)/; 
+const timeRx = /^([012]?[0-9])(:([0-5][0-9]))?(am|AM|pm|PM)?(?=[-\+\s]|$)/;
+
+let trace = false;
 
 export enum TimestampKind {
     Date = 0,
@@ -261,8 +263,9 @@ export class Timestamp {
             if (isNaN(mm)) {
                 // Actually we don't have month either.  Assume current.
                 mm = now.getMonth() + 1;
-                if (dd < now.getDate())
-                mm++;
+                if (dd < now.getDate()) {
+                    mm++;
+                }
             } else if (dd < now.getDate() || mm <= now.getMonth()) {
                 yy++;
             }
@@ -270,18 +273,130 @@ export class Timestamp {
         this.date = new Date(yy, mm - 1, dd);
         this.kind = TimestampKind.Date;
     }
-    public fromInput(input: string, defdate?: string) {
-        if (input == '.') {
-            this.fromToday();
-            return;
-        }
-        let match = offsetRegex.exec(input);
+    private fromAbsoluteInput(ans: string): boolean {
+        let zeroPpad = function (val: number, len: number): string {
+            let str = String(val);
+			while (str.length < len) str = '0' + str;
+			return str;
+        };
+        let formatTime = function (hh, nn: number): string {
+            return zeroPpad(hh, 2) + ':' + zeroPpad(nn, 2);
+        };
+        // Replicate Emacs regular expressions, order, and logic.
+        let yy, mm, dd, hh, nn: number;
+        let dow, week: number; 
+
+        // Match ISO week date.  
+        let match = isoWeekRx.exec(ans);
         if (match) {
+            if (trace) console.log('week');
+            yy = parseInt(match[1]);
+            dow = parseInt(match[3]);
+            week = parseInt(match[2]);
+            this.fromDateParts(yy, 1, 1);
+            dow = dow ? dow : 1;
+            let diff = dow - this.date.getDay() + (week - 1) * 7;
+            this.fromDateParts(yy, 1, diff);
+            ans = ans.substr(match[0].length);
+        }
+        // Match ISO dates with single digit month or day, like 2006-8-11.
+        match = isoDateRx.exec(ans);
+        if (match) {
+            if (trace) console.log('ISO');
+            yy = parseInt(match[2]);
+            mm = parseInt(match[3]);
+            dd = parseInt(match[4]);
+            this.fromDateParts(yy, mm, dd);
+            ans = ans.substr(match[0].length);
+        }
+        // Match dotted european dates.
+        match = euDateRx.exec(ans);
+        if (match) {
+            if (trace) console.log('EU');
+            yy = parseInt(match[3]);
+            dd = parseInt(match[1]);
+            mm = parseInt(match[2]);
+            this.fromDateParts(yy, mm, dd);
+            ans = ans.substr(match[0].length);
+        }
+        // Match american dates, like 5/30 or 5/30/7.
+        match = usDateRx.exec(ans);
+        if (match) {
+            if (trace) console.log('US');
+            yy = parseInt(match[4]);
+            mm = parseInt(match[1]);
+            dd = parseInt(match[2]);
+            this.fromDateParts(yy, mm, dd);
+            ans = ans.substr(match[0].length);
+        }
+        // Match month day year or plain day of week free form inputs.
+        match = monDayYearRx.exec(ans);
+        if (match) {
+            if (trace) console.log('mondayyear');
+            yy = parseInt(match[5]);
+            mm = months.findIndex(elt => elt.toLowerCase() == match[1].toLowerCase()) + 1;
+            dd = parseInt(match[3]);
+            if (isNaN(yy) && isNaN(dd)) {
+                // Must be a day of week.
+                this.adjust(1, match[1]);
+                return;
+            }
+            if (mm <= 0) {
+                mm = NaN;
+            }
+            this.fromDateParts(yy, mm, dd);
+            ans = ans.substr(match[0].length);
+        }
+
+        // Match military or am/pm times.  
+        match = timeRx.exec(ans);
+        if (match) {
+            hh = parseInt(match[1]);
+            nn = match[5] ? parseInt(match[5]) : 0;
+            let pm = match[4].toLowerCase() == 'pm';
+            if (!pm && hh == 12) {
+                hh = 0;
+            } else if (pm && hh < 12) {
+                hh = hh + 12;
+            }
+            this.date.setHours(hh);
+            this.date.setMinutes(nn);
+            ans = ans.substr(match[0].length);
+        }
+        // A second time may appear as end of range or duration.
+        if (ans.startsWith('-') || ans.startsWith('+')) {
+            match = timeRx.exec(ans.substr(1));
+            if (match) {
+                this.date2 = new Date(this.date.getTime());
+                let h2 = parseInt(match[1]);
+                let n2 = match[5] ? parseInt(match[5]) : 0;
+                if (ans.charAt(0) == '+') {
+                    h2 = h2 + hh;
+                    n2 = n2 + nn;
+                    if (n2 >= 60) {
+                        h2++;
+                        n2 = n2 - 60;
+                    }
+                }
+                this.date2.setHours(h2);
+                this.date2.setMinutes(n2);
+            }
+        }
+        return true;
+    }
+    private fromRelativeInput(ans: string, defdate?: string): boolean {
+        if (ans == '.') {
+            this.fromToday();
+            return true;
+        }
+        let match = offsetRegex.exec(ans);
+        if (match) {
+            if (trace) console.log('offset');
             let off = parseInt(match[2]);
             off = isNaN(off) ? 1 : off;
             if (off == 0) {
                 this.fromToday();
-                return;
+                return true;
             }
             if (match[1].length == 2) {
                 this.fromTimestamp(defdate);
@@ -290,47 +405,15 @@ export class Timestamp {
                 off = -off;
             }
             this.adjust(off, match[3]);
+            return true;
+        }
+        return false;
+    }
+    public fromInput(ans: string, defdate?: string) {
+        if (this.fromRelativeInput(ans, defdate)) {
             return;
         }
-        // Full or partial ISO date YYYY=MM-DD
-        match = isoDateRegex.exec(input);
-        if (match) {
-            let p1 = parseInt(match[1]);
-            let p2 = parseInt(match[2]);
-            let p3 = parseInt(match[3]);
-            if (isNaN(p2)) {
-                // p1 is actually the month.  Assume current year for now.
-                p2 = p1;
-                p1 = NaN;
-            }
-            this.fromDateParts(p1, p2, p3);
-            return;
-        }
-        match = usDateRegex.exec(input);
-        if (match) {
-            let p2 = parseInt(match[1]);
-            let p3 = parseInt(match[2]);
-            let p1 = parseInt(match[3] ? match[3].substr(1) : '');
-            this.fromDateParts(p1, p2, p3);
-            return;
-        }
-        match = monDayYearRegex.exec(input);
-        if (match) {
-            let p1 = parseInt(match[3] ? match[3].substr(1) : '');
-            let p2 = months.findIndex(elt => elt.toLowerCase() == match[1].toLowerCase()) + 1;
-            let p3 = parseInt(match[2] ? match[2].substr(1) : '');
-            if (isNaN(p1) && isNaN(p3)) {
-                // Must be a day of week.
-                this.adjust(1, match[1]);
-                return;
-            }
-            if (p2 <= 0) {
-                p2 = NaN;
-            }
-            this.fromDateParts(p1, p2, p3);
-            return;
-        }
-        // TODO: Parse other variations.
+        this.fromAbsoluteInput(ans);
     }
     public toString(): string {
         let zeroPpad = function (val: number, len: number): string {
@@ -405,11 +488,19 @@ export function orgParseDateTimeInput(input: string, defdate?: string): string {
 export function orgSetDayOfWeekAbbr(abbr: string[]) {
     if (abbr && abbr.length == 7) {
         daysOfWeek = abbr;
+    } else {
+        daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; 
     }
 }
 
 export function orgSetMonthAbbr(abbr: string[]) {
     if (abbr && abbr.length == 12) {
         months = abbr;
+    } else {
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     }
+}
+
+export function orgSetTrace(value: boolean) {
+    trace = value;
 }
