@@ -5,7 +5,7 @@ import * as timestamps from '../src/timestamps';
 
 suite('Timestamps', () => {
     suiteSetup(() => {
-        timestamps.orgSetTrace(true);
+        // timestamps.orgSetTrace(true);
         timestamps.orgSetDayOfWeekAbbr(undefined);
         timestamps.orgSetMonthAbbr(undefined);
     });
@@ -120,7 +120,6 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('2018-9-5'), '2018-09-05 Wed');
         assert.equal(timestamps.orgParseDateTimeInput('18-9-5'), '2018-09-05 Wed');
         assert.equal(timestamps.orgParseDateTimeInput('9-5'), '2019-09-05 Thu');
-        assert.equal(timestamps.orgParseDateTimeInput('14'), '2018-11-14 Wed');
         done();
     });
     test('Parses variations of US date', done => {
@@ -144,6 +143,10 @@ suite('Timestamps', () => {
         assert.equal(timestamps.orgParseDateTimeInput('2018-w4-1'), '2018-01-21 Sun');
         assert.equal(timestamps.orgParseDateTimeInput('2018-w4-4'), '2018-01-24 Wed');
         assert.equal(timestamps.orgParseDateTimeInput('w4'), '2019-01-20 Sun');  // No year, future date -> 2019.
+        done();
+    });
+    test('Parses bare day date', done => {
+        assert.equal(timestamps.orgParseDateTimeInput('14'), '2018-11-14 Wed');
         done();
     });
     test('Can redefine days of week abbreviations', done => {

@@ -65,11 +65,12 @@ const delayRegex = /^(-{1,2})([0-9]+)?([hdwmy])/;
 // a function of date. Could not use \w to match letters as it on;y works for ASCII. 
 const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
 const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
-const monDayYearRx = /^([^-\+\s\d]+)( (\d{1,2}))?( (\d{1,4}))?([ \t]|$)/;
+const monDayYearRx = /^([^-\+\s\d\.]+)( (\d{1,2}))?( (\d{1,4}))?([ \t]|$)/;
 const isoWeekRx = /^(?:([0-9]+)-)?[wW]([0-9]{1,2})(?:-([0-6]))?([ \t]|$)/;
 const isoDateRx = /^(([0-9]+)-)?([0-1]?[0-9])-([0-3]?[0-9])([^-0-9]|$)/;
 const euDateRx = /^(3[01]|0?[1-9]|[12][0-9])\. ?(0?[1-9]|1[012])\.( ?[1-9][0-9]{3})?/;
 const usDateRx = /^(0?[1-9]|1[012])\/(0?[1-9]|[12][0-9]|3[01])(\/([0-9]+))?([^\/0-9]|$)/; 
+const dayRx = /^([0-3]?[0-9])(\s|$)/;
 const timeRx = /^([012]?[0-9])(:([0-5][0-9]))?(am|AM|pm|PM)?(?=[-\+\s]|$)/;
 
 let trace = false;
@@ -115,7 +116,7 @@ export class Timestamp {
             this.fromToday();
             return;
         }
-        str = str.replace(/^\s+/, '');
+        str = str.trim();
         let startCh = str.charAt(0);
         let endCh = '';
         if (startCh == '<') {
@@ -135,13 +136,13 @@ export class Timestamp {
         }
         this.date = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
         this.kind = TimestampKind.Date;
-        str = str.substr(m[0].length).replace(/^\s+/, '');
+        str = str.substr(m[0].length).trim();
         m = timeRegex.exec(str);
         if (m) {
             this.date.setHours(parseInt(m[1]));
             this.date.setMinutes(parseInt(m[2]));
             this.kind = TimestampKind.DateTime;
-            str = str.substr(m[0].length).replace(/^\s+/, '');
+            str = str.substr(m[0].length).trim();
             if (str.length > 0 && str.charAt(0) == '-') {
                 m = timeRegex.exec(str.substr(1));
                 if (m) {
@@ -160,19 +161,19 @@ export class Timestamp {
             let off = parseInt(m[2]);
             this.repeat.value = isNaN(off) ? 1 : off;
             this.repeat.unit = m[3];
-            str = str.substr(m[0].length).replace(/^\s+/, '');
+            str = str.substr(m[0].length).trim();
         }
         m = delayRegex.exec(str);
         if (m) {
             let off = parseInt(m[2]);
             this.delay.value = isNaN(off) ? -1 : -off;
             this.delay.unit = m[3];
-            str = str.substr(m[0].length).replace(/^\s+/, '');
+            str = str.substr(m[0].length).trim();
         }
         if (startCh != '') {
             let i = str.indexOf(endCh);
             if (i >= 0) {
-                str = str.substr(i + 1).replace(/^\s+/, '');
+                str = str.substr(i + 1).trim();
             }
             if (str.length > 4 && str.substr(0, 3) == ('--' + startCh)) {
                 str = str.substr(3);
@@ -182,7 +183,7 @@ export class Timestamp {
                 }
                 this.date2 = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
                 this.kind = this.kind == TimestampKind.Date ? TimestampKind.DateRange : TimestampKind.DateTimeRange;
-                str = str.substr(m[0].length).replace(/^\s+/, '');
+                str = str.substr(m[0].length).trim();
                 m = timeRegex.exec(str);
                 if (m) {
                     this.date2.setHours(parseInt(m[1]));
@@ -283,6 +284,7 @@ export class Timestamp {
         // Replicate Emacs regular expressions, order, and logic.
         let yy, mm, dd, hh, nn: number;
         let dow, week: number; 
+        let matched = false;
 
         // Match ISO week date.  
         let match = isoWeekRx.exec(ans);
@@ -296,6 +298,7 @@ export class Timestamp {
             let diff = dow - this.date.getDay() + (week - 1) * 7;
             this.fromDateParts(yy, 1, diff);
             ans = ans.substr(match[0].length);
+            matched = true;
         }
         // Match ISO dates with single digit month or day, like 2006-8-11.
         match = isoDateRx.exec(ans);
@@ -306,6 +309,7 @@ export class Timestamp {
             dd = parseInt(match[4]);
             this.fromDateParts(yy, mm, dd);
             ans = ans.substr(match[0].length);
+            matched = true;
         }
         // Match dotted european dates.
         match = euDateRx.exec(ans);
@@ -316,6 +320,7 @@ export class Timestamp {
             mm = parseInt(match[2]);
             this.fromDateParts(yy, mm, dd);
             ans = ans.substr(match[0].length);
+            matched = true;
         }
         // Match american dates, like 5/30 or 5/30/7.
         match = usDateRx.exec(ans);
@@ -326,6 +331,7 @@ export class Timestamp {
             dd = parseInt(match[2]);
             this.fromDateParts(yy, mm, dd);
             ans = ans.substr(match[0].length);
+            matched = true;
         }
         // Match month day year or plain day of week free form inputs.
         match = monDayYearRx.exec(ans);
@@ -337,13 +343,26 @@ export class Timestamp {
             if (isNaN(yy) && isNaN(dd)) {
                 // Must be a day of week.
                 this.adjust(1, match[1]);
-                return;
+                // TODO: Skip through to hours.
+                return true;
             }
             if (mm <= 0) {
                 mm = NaN;
             }
             this.fromDateParts(yy, mm, dd);
             ans = ans.substr(match[0].length);
+            matched = true;
+        }
+        // Just day.
+        match = dayRx.exec(ans);
+        if (match) {
+            if (trace) console.log('day');
+            yy = NaN;
+            mm = NaN;
+            dd = parseInt(match[1]);
+            this.fromDateParts(yy, mm, dd);
+            ans = ans.substr(match[0].length);
+            matched = true;
         }
 
         // Match military or am/pm times.  
@@ -380,7 +399,7 @@ export class Timestamp {
                 this.date2.setMinutes(n2);
             }
         }
-        return true;
+        return matched;
     }
     private fromRelativeInput(ans: string, defdate?: string): boolean {
         if (ans == '.') {
@@ -408,10 +427,10 @@ export class Timestamp {
         return false;
     }
     public fromInput(ans: string, defdate?: string) {
-        if (this.fromRelativeInput(ans, defdate)) {
+        if (this.fromAbsoluteInput(ans)) {
             return;
         }
-        this.fromAbsoluteInput(ans);
+        this.fromRelativeInput(ans, defdate);
     }
     public toString(): string {
         let zeroPpad = function (val: number, len: number): string {
@@ -479,6 +498,7 @@ export class Timestamp {
 
 export function orgParseDateTimeInput(input: string, defdate?: string): string {
     let src: Timestamp = new Timestamp();
+    input = input.trim();
     src.fromInput(input, defdate);
     return src.toString();
 }
