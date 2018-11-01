@@ -1,5 +1,3 @@
-import { SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION } from "constants";
-
 'use strict';
 
 // <2003-09-16 Tue> or <2003-09-16 Tue 09:39> or <2003-09-16 Tue 12:00-12:30>
