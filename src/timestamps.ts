@@ -206,6 +206,7 @@ export class Timestamp {
                     this.date2.setDate(this.date2.getDate() + n); 
                 return;
             case 'h': 
+                // TODO: Change timestamp kind to DateTime, get current time, and then add hours?
                 this.date.setHours(this.date.getHours() + n); 
                 if (this.date2)
                     this.date2.setHours(this.date2.getHours() + n); 
