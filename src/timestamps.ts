@@ -56,22 +56,22 @@ let months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oc
 
 // In JS \w matches only ASCII letters.  The regex below takes care to also exclude other symbols in the unit 
 // part to achieve proper matching. 
-const offsetRegex = /^([-\+]{0,2})([0-9]+)?([^-\+\s\d]*)$/;
+let offsetRx = /^(-|\+|--|\+\+|)([0-9]*)([^-\+\s0-9]*)$/;
 // Alternative dynamic RegExp.
-//let offsetRx = new RegExp("^([-\+]{0,2})([0-9]+)?([hdwmy]|(" + daysOfWeek.join('|') + "))?$");
-const repeatRegex = /^(\+{0,2})([0-9]+)?([hdwmy])/;
-const delayRegex = /^(-{1,2})([0-9]+)?([hdwmy])/;
+//let offsetRx = new RegExp("^(-|\\+|--|\\+\\+)([0-9]+)?([hdwmy]|(" + daysOfWeek.join('|') + "))?$", 'i');
+const repeatRx = /^(\+{0,2})([0-9]+)?([hdwmyHDWMY])/;
+const delayRx = /^(-{1,2})([0-9]+)?([hdwmyHDWMY])/;
 // Localities may have day of week abbreviations of varying length.  We don't parse it.  Day of week is 
 // a function of date. Could not use \w to match letters as it on;y works for ASCII. 
-const dateRegex = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
-const timeRegex = /^([012]?[0-9]):([0-5][0-9])/;
-const monDayYearRx = /^([^-\+\s\d\.]+)( (\d{1,2}))?( (\d{1,4}))?([ \t]|$)/;
-const isoWeekRx = /^(?:([0-9]+)-)?[wW]([0-9]{1,2})(?:-([0-6]))?([ \t]|$)/;
+const dateRx = /^(\d\d\d\d)-(\d\d)-(\d\d)( [^-\+\s\d>\]]+)?/;  
+const timeRx = /^([012]?[0-9]):([0-5][0-9])/;
+const monDayYearRx = /^([^-\+\s\d\.]+)( (\d{1,2}))?( (\d{1,4}))?(\s|$)/;
+const isoWeekRx = /^(?:([0-9]+)-)?[wW]([0-9]{1,2})(?:-([0-6]))?(\s|$)/;
 const isoDateRx = /^(([0-9]+)-)?([0-1]?[0-9])-([0-3]?[0-9])([^-0-9]|$)/;
 const euDateRx = /^(3[01]|0?[1-9]|[12][0-9])\. ?(0?[1-9]|1[012])\.( ?[1-9][0-9]{3})?/;
 const usDateRx = /^(0?[1-9]|1[012])\/(0?[1-9]|[12][0-9]|3[01])(\/([0-9]+))?([^\/0-9]|$)/; 
 const dayRx = /^([0-3]?[0-9])(\s|$)/;
-const timeRx = /^([012]?[0-9])(:([0-5][0-9]))?(am|AM|pm|PM)?(?=[-\+\s]|$)/;
+const ampmRx = /^([012]?[0-9])(:([0-5][0-9]))?(am|AM|pm|PM)?(?=[-\+\s]|$)/;
 
 let trace = false;
 
@@ -130,21 +130,21 @@ export class Timestamp {
         } else {
             startCh = '';
         }
-        let m = dateRegex.exec(str);
+        let m = dateRx.exec(str);
         if (!m) {
             return;
         }
         this.date = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
         this.kind = TimestampKind.Date;
         str = str.substr(m[0].length).trim();
-        m = timeRegex.exec(str);
+        m = timeRx.exec(str);
         if (m) {
             this.date.setHours(parseInt(m[1]));
             this.date.setMinutes(parseInt(m[2]));
             this.kind = TimestampKind.DateTime;
             str = str.substr(m[0].length).trim();
             if (str.length > 0 && str.charAt(0) == '-') {
-                m = timeRegex.exec(str.substr(1));
+                m = timeRx.exec(str.substr(1));
                 if (m) {
                     this.date2 = new Date(this.date.getTime());
                     this.date2.setHours(parseInt(m[1]));
@@ -156,14 +156,14 @@ export class Timestamp {
             }
         }
         // Repeater and delay follow in a specific order.
-        m = repeatRegex.exec(str);
+        m = repeatRx.exec(str);
         if (m) {
             let off = parseInt(m[2]);
             this.repeat.value = isNaN(off) ? 1 : off;
             this.repeat.unit = m[3];
             str = str.substr(m[0].length).trim();
         }
-        m = delayRegex.exec(str);
+        m = delayRx.exec(str);
         if (m) {
             let off = parseInt(m[2]);
             this.delay.value = isNaN(off) ? -1 : -off;
@@ -177,14 +177,14 @@ export class Timestamp {
             }
             if (str.length > 4 && str.substr(0, 3) == ('--' + startCh)) {
                 str = str.substr(3);
-                let m = dateRegex.exec(str);
+                let m = dateRx.exec(str);
                 if (!m) {
                     return;
                 }
                 this.date2 = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
                 this.kind = this.kind == TimestampKind.Date ? TimestampKind.DateRange : TimestampKind.DateTimeRange;
                 str = str.substr(m[0].length).trim();
-                m = timeRegex.exec(str);
+                m = timeRx.exec(str);
                 if (m) {
                     this.date2.setHours(parseInt(m[1]));
                     this.date2.setMinutes(parseInt(m[2]));
@@ -196,34 +196,35 @@ export class Timestamp {
             }
         }
     }
-    public adjust(n: number, u: string) {
-        n = n ? n : 1;
-        u = u ? u.toLowerCase() : 'd';
+    public adjust(n: number, u?: string) {
+        u = (u && u.length > 0) ? u.toLowerCase() : 'd';
         
-        if (u.length == 1) {
-            switch (u) {
-                case 'd': 
-                    this.date.setDate(this.date.getDate() + n); 
-                    if (this.date2)
-                        this.date2.setDate(this.date2.getDate() + n); 
-                    break;
-                case 'w': 
-                    this.date.setDate(this.date.getDate() + n * 7); 
-                    if (this.date2)
-                        this.date2.setDate(this.date2.getDate() + n * 7); 
-                    break;
-                case 'm': 
-                    this.date.setMonth(this.date.getMonth() + n); 
-                    if (this.date2)
-                        this.date2.setMonth(this.date2.getMonth() + n); 
-                    break;
-                case 'y': 
-                    this.date.setFullYear(this.date.getFullYear() + n); 
-                    if (this.date2)
-                        this.date2.setFullYear(this.date2.getFullYear() + n); 
-                    break;
-            }
-            return;
+        switch (u) {
+            case 'd': 
+                this.date.setDate(this.date.getDate() + n); 
+                if (this.date2)
+                    this.date2.setDate(this.date2.getDate() + n); 
+                return;
+            case 'h': 
+                this.date.setHours(this.date.getHours() + n); 
+                if (this.date2)
+                    this.date2.setHours(this.date2.getHours() + n); 
+                return;
+            case 'm': 
+                this.date.setMonth(this.date.getMonth() + n); 
+                if (this.date2)
+                    this.date2.setMonth(this.date2.getMonth() + n); 
+                return;
+            case 'w': 
+                this.date.setDate(this.date.getDate() + n * 7); 
+                if (this.date2)
+                    this.date2.setDate(this.date2.getDate() + n * 7); 
+                return;
+            case 'y': 
+                this.date.setFullYear(this.date.getFullYear() + n); 
+                if (this.date2)
+                    this.date2.setFullYear(this.date2.getFullYear() + n); 
+                return;
         }
     
         let dow2 = daysOfWeek.findIndex(elt => elt.toLowerCase() == u);
@@ -337,7 +338,7 @@ export class Timestamp {
             dd = parseInt(match[3]);
             if (isNaN(yy) && isNaN(dd)) {
                 // Must be a day of week.
-                this.adjust(1, match[1]);
+                this.adjust(0, match[1]);
             } else {
                 if (mm <= 0) {
                     mm = NaN;
@@ -367,7 +368,7 @@ export class Timestamp {
         let matched = false;
         let hh, nn: number;
         // Match military or am/pm times.  
-        let match = timeRx.exec(ans);
+        let match = ampmRx.exec(ans);
         if (match) {
             hh = parseInt(match[1]);
             nn = match[5] ? parseInt(match[5]) : 0;
@@ -383,8 +384,9 @@ export class Timestamp {
             matched = true;
         }
         // A second time may appear as end of range or duration.
-        if (ans.startsWith('-') || ans.startsWith('+')) {
-            match = timeRx.exec(ans.substr(1));
+        // Try it only if start time has matched.  Otherwise simple offset like +4 may be wrongly processed here.
+        if (matched && (ans.startsWith('-') || ans.startsWith('+'))) {
+            match = ampmRx.exec(ans.substr(1));
             if (match) {
                 this.date2 = new Date(this.date.getTime());
                 let h2 = parseInt(match[1]);
@@ -410,7 +412,7 @@ export class Timestamp {
             if (trace) console.log('today');
             return true;
         }
-        let match = offsetRegex.exec(ans);
+        let match = offsetRx.exec(ans);
         if (match) {
             if (trace) console.log('offset');
             let off = parseInt(match[2]);
@@ -419,15 +421,19 @@ export class Timestamp {
                 if (trace) console.log('today');
                 return true;
             }
-            if (match[1].length == 2) {
+            if (match[1] == '--' || match[1] == '++') {
                 this.fromTimestamp(defdate);
             }
             if (match[1] == '-' || match[1] == '--') {
                 off = -off;
             }
+            if (match[1] == '') {
+                off = 0;
+            }
             this.adjust(off, match[3]);
             return true;
         }
+        if (trace) console.log('no match: [' + ans + ']');
         return false;
     }
     public fromInput(ans: string, defdate?: string) {
