@@ -129,8 +129,10 @@ suite('Timestamps', () => {
         done();
     });
     test('Parses day of week', done => {
-        assert.equal(timestamps.orgParseDateTimeInput('Wed'), '2018-11-07 Wed');
-        assert.equal(timestamps.orgParseDateTimeInput('fri'), '2018-11-02 Fri');
+        let ts = new timestamps.Timestamp();
+        ts.adjust(0, 'Fri');
+        let expected = ts.toString();
+        assert.equal(timestamps.orgParseDateTimeInput('fri'), expected);
         done();
     });
     test('Parses month day year date', done => {
